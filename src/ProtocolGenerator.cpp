@@ -1,4 +1,4 @@
-#include "ProtocolGenerator_New.h"
+#include "ProtocolGenerator.h"
 
 #include "CCFileUtils.h"
 #include "CCLuaEngine.h"
@@ -884,7 +884,7 @@ bool ProtocolGenerator::_FillMessageValue(google::protobuf::Message * p_pMessage
 		return bSuccess;
 	}
 
-	// 嵌套的message不会有默认值，因此这里不处理默认值的情况
+	// 宓屽鐨刴essage涓嶄細鏈夐粯璁ゅ�硷紝鍥犳杩欓噷涓嶅鐞嗛粯璁ゅ�肩殑鎯呭喌
 
 	if (p_pField->is_required())
 	{
