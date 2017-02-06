@@ -11,6 +11,12 @@ message ST_ITEM_BUY
 	required uint32 item_id = 1; // 物品ID
 	required uint32 buy_num = 2; // 购买数量
 }
+
+message ST_ITEM_BUY_RESULT
+{
+	required bool success = 1; // 是否购买成功
+	required uint32 error_code = 2; // 错误码
+}
 ```
 
 ```C++
@@ -55,7 +61,7 @@ static int tolua_NetworkManager_SendMessage(lua_State * p_pLuaState)
 
 	NetworkManager * pNetworkManager = static_cast<NetworkManager *>(tolua_tousertype(p_pLuaState, 1, 0));
 
-	_x_int nArguments = lua_gettop(p_pLuaState) - 1;
+	int32_t nArguments = lua_gettop(p_pLuaState) - 1;
 
 	if (2 == nArguments)
 	{
@@ -95,25 +101,25 @@ tolua_lerror:
 ```C++
 // NetworkManager.cpp
 
-bool NetworkManager::SendMessage(const char * p_pszMessageName, lua_State * p_pLuaState, _x_int p_nIndex)
+bool NetworkManager::SendMessage(const char * p_pszMessageName, lua_State * p_pLuaState, int32_t p_nIndex)
 {
-    ProtocolGenerator * pProtocolGenerator = ProtocolGenerator::Create("test.proto"); // 简单起见，这里直接初始化，使用后直接删除
+	ProtocolGenerator * pProtocolGenerator = ProtocolGenerator::Create("test.proto"); // 简单起见，这里直接初始化，使用后直接删除
 
-    // 第一个参数表示proto文件里定义的message的名字，这里p_pszMessageName的值为从Lua传过来的"ST_ITEM_BUY"
-    // 第二个参数表示Lua虚拟机的对象指针
-    // 第三个参数表示Lua中入栈的消息结构table所在的位置
-    google::protobuf::Message * pMessage = pProtocolGenerator->GenerateMessage(p_pszMessageName, p_pLuaState, p_nIndex);
+	// 第一个参数表示proto文件里定义的message的名字，这里p_pszMessageName的值为从Lua传过来的"ST_ITEM_BUY"
+	// 第二个参数表示Lua虚拟机的对象指针
+	// 第三个参数表示Lua中入栈的消息结构table所在的位置
+	google::protobuf::Message * pMessage = pProtocolGenerator->GenerateMessage(p_pszMessageName, p_pLuaState, p_nIndex);
 
-  // 若解析成功，那么就会返回一个google::protobuf::Message的对象指针，若返回nullptr，那么说明解析失败了
+	// 若解析成功，那么就会返回一个google::protobuf::Message的对象指针，若返回nullptr，那么说明解析失败了
   
-    if (nullptr == pMessage)
+	if (nullptr == pMessage)
 	{
 		return CCLOGERROR("Protocol Message \"%s\" Parse Fail!", p_pszMessageName), false;
 	}
 
 	bool bSuccess = this->SendMessage(pMessage); // 将这个Message发送出去	
   
-    pMessage->Clear();
+	pMessage->Clear();
 
 	SAFE_DELETE(pMessage);
 	SAFE_DELETE(pProtocolGenerator);
@@ -128,6 +134,8 @@ bool NetworkManager::SendMessage(xMessage * p_pMessage)
 ```
 
 #接收数据（将protobuf的Message转换为Lua table）
+
+将protobuf的Message转换为Lua table后，会将转换后的table压栈到Lua
 
 ```C++
 void NetworkManager::_ProcessData(const uint32_t p_uMessageType, const unshgned char * p_pszDataBuffer, const uint32_t p_uDataSize)
@@ -146,17 +154,32 @@ void NetworkManager::_ProcessData(const uint32_t p_uMessageType, const unshgned 
 	
 	ProtocolGenerator * pProtocolGenerator = ProtocolGenerator::Create("test.proto"); // 简单起见，这里直接初始化，使用后直接删除
 	
-	const char * pszMessageName = this->_GetMessageName(p_uMessageType);
+	const char * pszMessageName = this->_GetMessageName(p_uMessageType); // 
 
-	pLuaStack->pushInt(p_uMessageType);
+	pLuaStack->pushInt(p_uMessageType); // 消息号 
 
 	if (pProtocolGenerator->ParseMessage(pszMessageName, p_pszDataBuffer, p_uDataSize, pLuaStack->getLuaState()))
 	{
-		pLuaStack->executeFunctionByHandler(this->m_mapHandlers[p_uMessageType], 2);
+		pLuaStack->executeFunctionByHandler(this->m_mapHandlers[p_uMessageType], 2); // 回调Lua函数，this->m_mapHandlers[p_uMessageType] => process_item_buy_result 	
 	}
 	
  	pLuaStack->clean();
  	
  	SAFE_DELETE(pProtocolGenerator);
 }
+
+const char * NetworkProcessor::_GetMessageName(const uint32_t p_uMessageType) const
+{
+	return "ST_ITEM_BUY_RESULT";
+}
+```
+
+```Lua
+function process_item_buy_result(message_type, datas)
+	if datas.success then
+		-- buy success
+		return
+	end
+	-- buy fail, deal with datas.error_code
+end
 ```
