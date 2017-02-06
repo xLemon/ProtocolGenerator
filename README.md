@@ -174,6 +174,8 @@ const char * NetworkProcessor::_GetMessageName(const uint32_t p_uMessageType) co
 }
 ```
 
+Lua回调函数处理:
+
 ```Lua
 function process_item_buy_result(message_type, datas)
 	if datas.success then
